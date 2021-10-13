@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -7,6 +8,7 @@ import requests
 import textwrap
 import datetime
 import argparse
+import configparser
 #import lxml
 from lxml import etree as ET
 from lxml import objectify
@@ -208,6 +210,8 @@ class SimpReport:
             if self.args.verbose:
                 print(ET.tostring(ntry))
             data['tr_count'] += 1
+            #data['tr_id'] = datetime.datetime.now().strftime('%s%f')
+            data['tr_id'] = ntry.xpath('./Ref/TxRef/text()')[0][:-1]
             data['booking_date'] = ntry.xpath('./BookgDt/Dt/text()')[0]
             data['tr_date'] = ntry.xpath('./TxDt/text()')[0]
             data['tr_src'] = ntry.xpath('./TrnSrc/text()')[0]
@@ -236,7 +240,7 @@ class SimpReport:
             data['cammount'] = int(float(data['ammount']) * 100)
             data['tr_total'] += float(data['ammount'])
 
-            line = f"""{data['acccount_id']},{data['cammount']},{data['sgn']},{data['currency']},{data['booking_date']},UZN,,,"{data['payer_id']}","{data['payer_name1']}","{data['payer_name2']}","{data['payer_name3']}","{data['payer_name4']}","{data['memo']}","","","",{data['tr_src']},,{data['tr_date']}\n"""
+            line = f"""{data['acccount_id']},{data['cammount']},{data['sgn']},{data['currency']},{data['booking_date']},UZN,{data['tr_id']},,"{data['payer_id']}","{data['payer_name1']}","{data['payer_name2']}","{data['payer_name3']}","{data['payer_name4']}","{data['memo']}","","","",{data['tr_src']},,{data['tr_date']}\n"""
             lines += line
  
         #print(data)
@@ -273,13 +277,11 @@ class SimpReport:
                 f.write(report['simp_report'])
 
             logging.info(f"simp_report saved: {fn}")
-
-            send_from = self.args.email
-            send_to = self.args.email
-            subject = "ING SIMP report at self.args.date"
+            subject = f"ING SIMP report at {self.args.date}"
             message = f'Dear Colleague, please find attached SIMP report generated for: {self.args.date}'
             files = [fn]
-            send_mail(send_from, send_to, subject, message, files, server="localhost", port=25, username='', password='', use_tls=False, use_auth=False)
+            send_to = [self.args.mail_to, self.args.mail_from]
+            send_mail(self.args.mail_from, send_to, subject, message, files, self.args.mail_host, self.args.mail_port, self.args.mail_user, self.args.mail_pass, use_tls=True, use_auth=True)
             
             logging.info(f"simp_report sent via email to: {send_to}")
 
@@ -288,14 +290,41 @@ class SimpReport:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='ING SIMP report handler.')
+    cparser = argparse.ArgumentParser(  # pre instance of argument parser - used to parse config file...
+        description=__doc__,
+        add_help=False,  # Turn off help, so we print all options in response to -h
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    cparser.add_argument("-c", "--conf_file", default=os.path.abspath(sys.argv[0]).replace('.py', '.conf'), help="Specify config file (default: %(default)s)")
+
+    args, remaining_argv = cparser.parse_known_args()  # parse known arguments to include defaults from config file
+    defaults = { "option":"default" }
+    if args.conf_file:
+        config = configparser.SafeConfigParser()
+        config.read([args.conf_file])
+        defaults.update(dict(config.items("defaults")))
+
+    parser = argparse.ArgumentParser(
+        parents=[cparser],
+        description='ING SIMP report handler.',
+        formatter_class=argparse.RawTextHelpFormatter,
+    )  # Inherit options from config_parser
+    parser.set_defaults(**defaults)
+
     parser.add_argument("mode", choices=['get', 'save', 'send'], default='get', help=f'script mode (default: %(default)s)')
-    parser.add_argument("-d", "--date", default=(datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d"), help="report date (default: %(default)s)")
     parser.add_argument("-v", "--verbose", default=False, action='store_true', help="verbose mode (default: %(default)s)")
     parser.add_argument("-f", "--force", default=False, action='store_true', help="force mode - ignore errors (default: %(default)s)")
-    parser.add_argument("-s", "--simpcode", default="105001617564", help="ING customer SIMP code (default: %(default)s)")
-    parser.add_argument("-e", "--email", default="bankin@netforyou.pl", help="target email address that should recieve simp reports. (default: %(default)s)")
-    args = parser.parse_args()
+    parser.add_argument("-d", "--date", default=(datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d"), help="report date (default: %(default)s)")
+    parser.add_argument("-s", "--simpcode", default=105001617564, help="ING customer SIMP code (default: %(default)s)")
+    parser.add_argument("--mail_to", help="target email address that should recieve simp reports. (default: %(default)s)")
+    parser.add_argument("--mail_from", help="source email address from which email is sent. (default: %(default)s)")
+    parser.add_argument("--mail_host", help="mail server hostname. (default: %(default)s)")
+    parser.add_argument("--mail_port", help="mail server port number. (default: %(default)s)")
+    parser.add_argument("--mail_user", help="mail server user. (default: %(default)s)")
+    parser.add_argument("--mail_pass", help="mail server password. (default: %(default)s)")
+
+
+    args = parser.parse_args(remaining_argv)
 
     sr = SimpReport(args)
     if args.mode in ['get', 'send', 'save']:
