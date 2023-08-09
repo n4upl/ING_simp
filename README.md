@@ -22,6 +22,9 @@ Please be aware to choose strong password for the keystore.
 
 Save keystore to the disk.
 
+![image](https://github.com/n4upl/ING_simp/assets/10530333/a3936bc9-07b0-496e-8d6c-449ef604519c)
+
+
 ## Convert the keystore to .pem format. 
 The `simp.py` app can undestard certiificates pem format only. Therefore, generated JKS keystore has to be converted to PEM format.
 1) Please download (protecle)[http://portecle.sourceforge.net/] software from https://netcologne.dl.sourceforge.net/project/portecle/v1.11/portecle-1.11.zip
@@ -34,5 +37,8 @@ java -jar portecle.jar
 ```
 
 3) Open 37331.jks : portecle.jar -> File -> Open Keystore File and give the keystore password 
-4) Right click over your private key entry and select export
+4) Right click over your `clienttransport` entry and select export like on the image below selecting "Private Key and Certificate" and PEM Encoded format.
 
+![image](https://github.com/n4upl/ING_simp/assets/10530333/f095ddc6-1dce-4f24-a00d-9183afd470d5)
+
+5) copy generated `37331.pem` file to your simp.py folder and run `./simp.py get` 
